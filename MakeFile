@@ -1,0 +1,13 @@
+DB_URL=postgres://postgres:root@localhost:5432/personal_finance?sslmode=disable
+
+migrate-create:
+	@migrate create -ext sql -dir migrations -seq $(name)
+
+migrate-up:
+	@migrate -path migrations -database "$(DB_URL)" up
+
+migrate-down:
+	@migrate -path migrations -database "$(DB_URL)" down 1
+
+run:
+	@go run cmd/api/main.go
