@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"personal-finance/internal/auth"
 	"strconv"
 )
 
 type ServiceContract interface {
-	CreateAccount(ctx context.Context, input *CreateAccountInput) (*Account, error)
-	GetAccountByID(ctx context.Context, id int64) (*Account, error)
+	CreateAccount(ctx context.Context, input CreateAccountInput) (*Account, error)
+	GetAccountByID(ctx context.Context, accountID int64, requestingUserID int64) (*Account, error)
 }
 
 type Handler struct {
@@ -33,13 +34,21 @@ func (h *Handler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID, ok := auth.GetUserIDFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
 	var req CreateAccountInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid json body: " + err.Error()})
 		return
 	}
 
-	acc, err := h.service.CreateAccount(r.Context(), &req)
+	req.UserID = userID
+
+	acc, err := h.service.CreateAccount(r.Context(), req)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrEmptyName), errors.Is(err, ErrInvalidType), errors.Is(err, ErrInvalidBalance):
@@ -59,15 +68,20 @@ func (h *Handler) GetAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// r.URL.Path
+	userID, ok := auth.GetUserIDFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
 	idStr := r.PathValue("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
+	if err != nil || id <= 0 {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid account id"})
 		return
 	}
 
-	acc, err := h.service.GetAccountByID(r.Context(), id)
+	acc, err := h.service.GetAccountByID(r.Context(), id, userID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "account not found"})

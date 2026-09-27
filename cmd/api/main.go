@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"personal-finance/internal/account"
+	"personal-finance/internal/auth"
 	"personal-finance/internal/platform/database"
 	"personal-finance/internal/transaction"
 )
@@ -28,18 +29,15 @@ func main() {
 	}
 	defer db.Close()
 
-	// Akun Dummy
-	// var accountID int64
-	// _ = db.QueryRow("SELECT id FROM accounts LIMIT 1").Scan(&accountID)
-	// if accountID == 0 {
-	// 	queryInitAccount := `
-	// 		INSERT INTO accounts (user_id, name, type, currency, balance)
-	// 		VALUES (1, 'BCA Rekening Utama', 'BANK', 'IDR', 100000)
-	// 		RETURNING id;
-	// 	`
-	// 	_ = db.QueryRow(queryInitAccount).Scan(&accountID)
-	// 	log.Printf("Akun dummy berhasil dibuat dengan ID: %d", accountID)
-	// }
+	// Inisialisasi AUTH
+	jwtSecret := "supersecretjwtkey12345"
+	jwtExpires := 24 * time.Hour
+	authRepo := auth.NewRepository(db)
+	authService := auth.NewService(authRepo, jwtSecret, jwtExpires)
+	authHandler := auth.NewHandler(authService)
+
+	// Middleware
+	authMiddleware := auth.NewMiddleware(authService)
 
 	// Dependency Injection Transaction
 	transactionRepo := transaction.NewRepository()
@@ -54,12 +52,16 @@ func main() {
 	// Routing
 	mux := http.NewServeMux()
 
+	// Route Auth
+	mux.HandleFunc("POST /api/v1/register", authHandler.Register)
+	mux.HandleFunc("POST /api/v1/login", authHandler.Login)
+
 	// Route Transaction
-	mux.HandleFunc("/api/v1/transactions", transactionHandler.CreateTransaction)
+	mux.HandleFunc("POST /api/v1/transactions", authMiddleware.RequireAuth(transactionHandler.CreateTransaction))
 
 	// Route Account
-	mux.HandleFunc("/api/v1/accounts", accHandler.CreateAccount)
-	mux.HandleFunc("/api/v1/accounts/{id}", accHandler.GetAccount)
+	mux.HandleFunc("POST /api/v1/accounts", authMiddleware.RequireAuth(accHandler.CreateAccount))
+	mux.HandleFunc("GET /api/v1/accounts/{id}", authMiddleware.RequireAuth(accHandler.GetAccount))
 
 	// Konfigurasi HTTP Server
 	server := http.Server{

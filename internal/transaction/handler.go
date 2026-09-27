@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"personal-finance/internal/auth"
 )
 
 type ServiceContract interface {
@@ -32,12 +33,18 @@ func (h *Handler) CreateTransaction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID, ok := auth.GetUserIDFromContext(r.Context())
+	if !ok {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+	}
+
 	var req CreateTransactionInput
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
+
+	req.UserID = userID
 
 	result, err := h.service.CreateTransaction(r.Context(), req)
 	if err != nil {
@@ -46,6 +53,8 @@ func (h *Handler) CreateTransaction(w http.ResponseWriter, r *http.Request) {
 			WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		case errors.Is(err, ErrAccountNotFounrd):
 			WriteJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		case errors.Is(err, ErrForbidden):
+			WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "forbidden: you cannot perform transactions on this account"})
 		case errors.Is(err, ErrInsufficientBalance):
 			WriteJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 		default:

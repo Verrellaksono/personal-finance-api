@@ -11,6 +11,7 @@ var (
 	ErrInvalidType    = errors.New("Invalid account type, must be Bank, E-wallet or Cash.")
 	ErrInvalidBalance = errors.New("Initial balance cannot be negative.")
 	ErrNotFound       = errors.New("Account not found")
+	ErrForbidden      = errors.New("you do not have access to this account")
 )
 
 type RepositoryContract interface {
@@ -34,7 +35,7 @@ func NewService(repo RepositoryContract) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) CreateAccount(ctx context.Context, input *CreateAccountInput) (*Account, error) {
+func (s *Service) CreateAccount(ctx context.Context, input CreateAccountInput) (*Account, error) {
 	trimmedName := strings.TrimSpace(input.Name)
 	if trimmedName == "" {
 		return nil, ErrEmptyName
@@ -74,10 +75,19 @@ func (s *Service) CreateAccount(ctx context.Context, input *CreateAccountInput) 
 	return acc, nil
 }
 
-func (s *Service) GetAccountByID(ctx context.Context, id int64) (*Account, error) {
-	if id <= 0 {
-		return nil, errors.New("Invalid account id")
+func (s *Service) GetAccountByID(ctx context.Context, accountID int64, requestingUserID int64) (*Account, error) {
+	if accountID <= 0 {
+		return nil, errors.New("invalid account id")
 	}
 
-	return s.repo.GetById(ctx, id)
+	acc, err := s.repo.GetById(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	if acc.UserID != requestingUserID {
+		return nil, ErrForbidden
+	}
+
+	return acc, nil
 }

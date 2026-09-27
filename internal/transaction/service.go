@@ -11,12 +11,13 @@ import (
 var (
 	ErrInsufficientBalance = errors.New("Insufficient Balance")
 	ErrAccountNotFounrd    = errors.New("Account Not Found")
+	ErrForbidden           = errors.New("you do not have access to this account")
 	ErrInvalidAmount       = errors.New("Amount must be greater than 0")
 	ErrInvalidType         = errors.New("Invalid Transaction Type")
 )
 
 type RepositoryContract interface {
-	GetAccountBalanceForUpdate(ctx context.Context, tx *sql.Tx, accountID int64) (int64, error)
+	GetAccountBalanceForUpdate(ctx context.Context, tx *sql.Tx, accountID int64) (balance int64, ownerID int64, err error)
 	UpdateAccountBalance(ctx context.Context, tx *sql.Tx, accountID int64, newBalance int64) error
 	CreateTransaction(ctx context.Context, tx *sql.Tx, transaction *Transaction) error
 }
@@ -34,6 +35,7 @@ type Transaction struct {
 }
 
 type CreateTransactionInput struct {
+	UserID          int64     `jason:"-"`
 	AccountID       int64     `json:"account_id"`
 	CategoryID      *int64    `json:"category_id"`
 	Amount          int64     `json:"amount"`
@@ -70,12 +72,16 @@ func (s *Service) CreateTransaction(ctx context.Context, input CreateTransaction
 	}
 	defer tx.Rollback()
 
-	currentBalance, err := s.repo.GetAccountBalanceForUpdate(ctx, tx, input.AccountID)
+	currentBalance, ownerID, err := s.repo.GetAccountBalanceForUpdate(ctx, tx, input.AccountID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrAccountNotFounrd
 		}
 		return nil, fmt.Errorf("Failed to lock account: %w", err)
+	}
+
+	if ownerID != input.UserID {
+		return nil, ErrForbidden
 	}
 
 	var newBalance int64
@@ -99,7 +105,7 @@ func (s *Service) CreateTransaction(ctx context.Context, input CreateTransaction
 		Type:            input.Type,
 		Description:     input.Description,
 		TransactionDate: input.TransactionDate,
-		CreatedAt:       time.Now(),
+		CurrentBalance:  newBalance,
 	}
 
 	if err := s.repo.CreateTransaction(ctx, tx, t); err != nil {

@@ -51,7 +51,7 @@ func (r *Repository) GetById(ctx context.Context, id int64) (*Account, error) {
 	).Scan(&acc.ID, &acc.UserID, &acc.Name, &acc.Type, &acc.Currency, &acc.Balance, &acc.CreatedAt, &acc.UpdatedAt)
 
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("Failed to query account: %w", err)

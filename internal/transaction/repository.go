@@ -12,20 +12,19 @@ func NewRepository() *Repository {
 	return &Repository{}
 }
 
-func (r *Repository) GetAccountBalanceForUpdate(ctx context.Context, tx *sql.Tx, accountID int64) (int64, error) {
+func (r *Repository) GetAccountBalanceForUpdate(ctx context.Context, tx *sql.Tx, accountID int64) (balance int64, ownerID int64, err error) {
 	query := `
-			SELECT balance
+			SELECT balance, user_id
 			FROM accounts
 			WHERE id = $1
 			FOR UPDATE;
 	`
 
-	var balance int64
-	err := tx.QueryRowContext(ctx, query, accountID).Scan(&balance)
-	if err != nil {
-		return 0, err
+	if err := tx.QueryRowContext(ctx, query, accountID).Scan(&balance, &ownerID); err != nil {
+		return 0, 0, err
 	}
-	return balance, nil
+
+	return balance, ownerID, nil
 }
 
 func (r *Repository) UpdateAccountBalance(ctx context.Context, tx *sql.Tx, accountID int64, newBalance int64) error {
