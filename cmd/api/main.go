@@ -7,7 +7,10 @@ import (
 
 	"personal-finance/internal/account"
 	"personal-finance/internal/auth"
+	"personal-finance/internal/budget"
+	"personal-finance/internal/category"
 	"personal-finance/internal/platform/database"
+	"personal-finance/internal/report"
 	"personal-finance/internal/transaction"
 )
 
@@ -49,6 +52,21 @@ func main() {
 	accService := account.NewService(accRepo)
 	accHandler := account.NewHandler(accService)
 
+	// Dependency injection Category
+	categoryRepo := category.NewRepository(db)
+	categoryService := category.NewService(categoryRepo)
+	categoryHandler := category.NewHandler(categoryService)
+
+	// Dependency Injection Budget
+	budgetRepo := budget.NewRepository(db)
+	budgetService := budget.NewService(budgetRepo)
+	budgetHandler := budget.NewHandler(budgetService)
+
+	// Dependency Injection Budget
+	reportRepo := report.NewRepository(db)
+	reportService := report.NewService(reportRepo)
+	reportHandler := report.NewHandler(reportService)
+
 	// Routing
 	mux := http.NewServeMux()
 
@@ -62,6 +80,17 @@ func main() {
 	// Route Account
 	mux.HandleFunc("POST /api/v1/accounts", authMiddleware.RequireAuth(accHandler.CreateAccount))
 	mux.HandleFunc("GET /api/v1/accounts/{id}", authMiddleware.RequireAuth(accHandler.GetAccount))
+
+	// Route Categories
+	mux.HandleFunc("POST /api/v1/categories", authMiddleware.RequireAuth(categoryHandler.CreateCategory))
+	mux.HandleFunc("GET /api/v1/categories", authMiddleware.RequireAuth(categoryHandler.ListCategories))
+
+	// Route Cudget
+	mux.HandleFunc("POST /api/v1/budgets", authMiddleware.RequireAuth(budgetHandler.SetBudget))
+	mux.HandleFunc("GET /api/v1/budgets/progress", authMiddleware.RequireAuth(budgetHandler.GetBudgetProgress))
+
+	// Route Report
+	mux.HandleFunc("GET /api/v1/reports/monthly-summary", authMiddleware.RequireAuth(reportHandler.MonthlySummary))
 
 	// Konfigurasi HTTP Server
 	server := http.Server{
