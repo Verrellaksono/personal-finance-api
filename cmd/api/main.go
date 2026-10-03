@@ -12,6 +12,7 @@ import (
 	"personal-finance/internal/platform/database"
 	"personal-finance/internal/report"
 	"personal-finance/internal/transaction"
+	"personal-finance/internal/transfer"
 )
 
 func main() {
@@ -67,6 +68,11 @@ func main() {
 	reportService := report.NewService(reportRepo)
 	reportHandler := report.NewHandler(reportService)
 
+	// Dependency injection Transfer
+	transferRepo := transfer.NewRepository(db)
+	transferService := transfer.NewService(transferRepo)
+	transferHandler := transfer.NewHandler(transferService)
+
 	// Routing
 	mux := http.NewServeMux()
 
@@ -91,6 +97,9 @@ func main() {
 
 	// Route Report
 	mux.HandleFunc("GET /api/v1/reports/monthly-summary", authMiddleware.RequireAuth(reportHandler.MonthlySummary))
+
+	// Route Transfer
+	mux.HandleFunc("POST /api/v1/transfers", authMiddleware.RequireAuth(transferHandler.Transfer))
 
 	// Konfigurasi HTTP Server
 	server := http.Server{
