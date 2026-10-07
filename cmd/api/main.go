@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"personal-finance/internal/account"
@@ -15,15 +16,23 @@ import (
 	"personal-finance/internal/transfer"
 )
 
+// Helper untuk membaca environment variable dengan nilai default (fallback)
+func getEnv(key, fallback string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return fallback
+}
+
 func main() {
 	// Konfigurasi Database
 	cfg := database.Config{
-		Host:     "localhost",
-		Port:     "5432",
-		User:     "postgres",
-		Password: "root",
-		DBName:   "personal_finance",
-		SSLMode:  "disable",
+		Host:     getEnv("DB_HOST", "localhost"),
+		Port:     getEnv("DB_PORT", "5432"),
+		User:     getEnv("DB_USER", "postgres"),
+		Password: getEnv("DB_PASSWORD", "root"),
+		DBName:   getEnv("DB_NAME", "personal_finance"),
+		SSLMode:  getEnv("DB_SSLMODE", "disable"),
 	}
 
 	// Database Connection
