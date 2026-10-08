@@ -34,4 +34,4 @@ jobs:
 
       # Verify Docker Build
       - name: Verify Docker Build
-        run: docker build . -t personal-finance-api:ci:test
+        run: docker build . -t personal-finance-api:ci-test
