@@ -1,0 +1,37 @@
+name: Continuous Integration
+
+# Pemicu: Jalankan pipeline setiap kali ada Push atau Pull Request ke branch main
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-build:
+    name: Run Tests and Build Container
+    runs-on: ubuntu-latest #Menggunakan VM ubuntu terakhir milik github
+
+    steps:
+      # Checkout/Download source code proyek ke VM
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Setup toolchain go resmi
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.5
+          cache: true
+
+      # Jalankan Automated Unit Tests
+      - name: Run Unit Tests
+        run: go test -v -race ./s
+
+      # Verify Go Build
+      - name: Verify Go Build
+        run: go build -v ./cmd/api
+
+      # Verify Docker Build
+      - name: Verify Docker Build
+        run: docker build . -t personal-finance-api:ci:test
