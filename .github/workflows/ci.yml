@@ -26,7 +26,7 @@ jobs:
 
       # Jalankan Automated Unit Tests
       - name: Run Unit Tests
-        run: go test -v -race ./s
+        run: go test -v -race ./...
 
       # Verify Go Build
       - name: Verify Go Build
