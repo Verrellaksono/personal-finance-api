@@ -1,0 +1,403 @@
+openapi: 3.0.3
+info:
+  title: Personal Finance Ledger & Transfer API
+  description: >
+    Production-grade Personal Finance API built with Go, PostgreSQL, and Docker.
+    Implements ACID-compliant ledgers, concurrency-safe transfers with row-level locks,
+    idempotency engine, JWT authentication, and monthly analytical reports.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local Docker Development Server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "invalid json body or validation failed"
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        password:
+          type: string
+          format: password
+          example: "securepassword123"
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        password:
+          type: string
+          example: "securepassword123"
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        user:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 1
+            email:
+              type: string
+              example: "user@example.com"
+
+    CreateAccountRequest:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+          example: "BCA Tabungan"
+        type:
+          type: string
+          enum: [BANK, WALLET, CASH]
+          example: "BANK"
+        initial_balance:
+          type: integer
+          example: 1000000
+
+    AccountResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "BCA Tabungan"
+        type:
+          type: string
+          example: "BANK"
+        balance:
+          type: integer
+          example: 1000000
+        created_at:
+          type: string
+          format: date-time
+
+    CreateTransactionRequest:
+      type: object
+      required: [account_id, amount, type, transaction_date]
+      properties:
+        account_id:
+          type: integer
+          example: 1
+        category_id:
+          type: integer
+          nullable: true
+          example: 2
+        amount:
+          type: integer
+          example: 50000
+        type:
+          type: string
+          enum: [INCOME, EXPENSE]
+          example: "EXPENSE"
+        description:
+          type: string
+          example: "Makan Siang"
+        transaction_date:
+          type: string
+          format: date-time
+          example: "2026-10-01T12:00:00Z"
+
+    TransactionResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 101
+        account_id:
+          type: integer
+          example: 1
+        category_id:
+          type: integer
+          nullable: true
+          example: 2
+        amount:
+          type: integer
+          example: 50000
+        type:
+          type: string
+          example: "EXPENSE"
+        current_balance:
+          type: integer
+          example: 950000
+        description:
+          type: string
+          example: "Makan Siang"
+        transaction_date:
+          type: string
+          format: date-time
+
+    TransferRequest:
+      type: object
+      required: [from_account_id, to_account_id, amount]
+      properties:
+        from_account_id:
+          type: integer
+          example: 1
+        to_account_id:
+          type: integer
+          example: 2
+        amount:
+          type: integer
+          example: 250000
+        notes:
+          type: string
+          example: "Top-up e-wallet"
+
+    TransferResponse:
+      type: object
+      properties:
+        transfer:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 5
+            from_account_id:
+              type: integer
+              example: 1
+            to_account_id:
+              type: integer
+              example: 2
+            amount:
+              type: integer
+              example: 250000
+            notes:
+              type: string
+              example: "Top-up e-wallet"
+            created_at:
+              type: string
+              format: date-time
+        from_account_balance:
+          type: integer
+          example: 700000
+
+    MonthlySummaryResponse:
+      type: object
+      properties:
+        month_period:
+          type: string
+          format: date-time
+        total_income:
+          type: integer
+          example: 5000000
+        total_expense:
+          type: integer
+          example: 1250000
+        net_savings:
+          type: integer
+          example: 3750000
+        expense_by_category:
+          type: array
+          items:
+            type: object
+            properties:
+              category_id:
+                type: integer
+                example: 1
+              category_name:
+                type: string
+                example: "Makanan & Minuman"
+              total_spent:
+                type: integer
+                example: 750000
+
+paths:
+  /auth/register:
+    post:
+      summary: Register akun pengguna baru
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Akun berhasil dibuat
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Input tidak valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      summary: Login dan peroleh token JWT
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login berhasil
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Kredensial salah
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /accounts:
+    post:
+      summary: Buat rekening / dompet baru
+      tags: [Account]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAccountRequest"
+      responses:
+        "201":
+          description: Rekening dibuat
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountResponse"
+
+  /accounts/{id}:
+    get:
+      summary: Ambil detail saldo akun (Anti-IDOR)
+      tags: [Account]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detail akun ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountResponse"
+        "403":
+          description: Dilarang (Mencoba mengakses rekening user lain)
+        "404":
+          description: Akun tidak ditemukan
+
+  /transactions:
+    post:
+      summary: Catat mutasi ledger (INCOME / EXPENSE) dengan row-locking
+      tags: [Transaction]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTransactionRequest"
+      responses:
+        "201":
+          description: Transaksi berhasil diproses
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionResponse"
+        "422":
+          description: Saldo tidak mencukupi untuk transaksi EXPENSE
+
+  /transfers:
+    post:
+      summary: Transfer dana antar-akun dengan proteksi Idempotency Key & Deadlock Prevention
+      tags: [Transfer]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: UUID v4 unik dari klien untuk mencegah double-transfer
+          schema:
+            type: string
+            example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferRequest"
+      responses:
+        "201":
+          description: Transfer selesai dieksekusi (atau cache response jika key sama)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferResponse"
+        "409":
+          description: Permintaan dengan Idempotency Key tersebut sedang diproses secara konkuren
+        "422":
+          description: Saldo akun asal tidak mencukupi
+
+  /reports/monthly-summary:
+    get:
+      summary: Rekapitulasi keuangan bulanan & agregasi pengeluaran per kategori
+      tags: [Report]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          required: true
+          description: Format YYYY-MM
+          schema:
+            type: string
+            example: "2026-10"
+      responses:
+        "200":
+          description: Ringkasan analitik bulanan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlySummaryResponse"
